@@ -289,10 +289,10 @@ if __name__ == '__main__':
 
     elif len(sys.argv) > 1 and sys.argv[1] == "upload":
 
-        user = raw_input("User:")
+        ftpuser = raw_input("User: ")
         pw = getpass("Password: ")
         print "Connecting to sasbury.com and uploading new version"
-        sasburyHost = FTPHost.connect("ftp.sasbury.com", user=user, password=pw)
+        sasburyHost = FTPHost.connect("ftp.sasbury.com", user=ftpuser, password=pw)
         sasburyHost.mirror_to_remote(BUILD_FOLDER,"/")
         sasburyHost.try_quit()
 
