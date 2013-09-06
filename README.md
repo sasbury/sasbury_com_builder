@@ -5,7 +5,9 @@ When I decided to update my web site, I wanted, for ease of setup and maintenanc
 
 The file site_builder.py is the script i created to build my site based on that
 post. It is discussed futher on in several entries on my blog at
-www.sasbury.com.
+www.sasbury.com. The script has not been made "reusable" and contains
+references to my blog, however, these are certainly editable. Of course the ftp
+information required to upload the site is not included ;-).
 
 The basic a folder structure for the site is:
 
