@@ -101,7 +101,7 @@ def getPage(path,pages, default=None):
 
     return page
 
-def getPageDate(page):
+def getPageDateString(page):
 
     dateString = str(page['meta']['date'])
 
@@ -113,6 +113,18 @@ def getPageDate(page):
         return "2012";#rank these above circa, as a string like circa will be
     else:
         return dateString.split(' ')[0]
+
+def getPageDate(page):
+    dateString = getPageDateString(page)
+    dt = datetime.strptime("2000","%Y") #if no date is set, make it in the past
+
+    if isinstance(dateString, str) or isinstance(dateString, unicode):
+        if len(dateString)==4:
+            dt = datetime.strptime(dateString, "%Y")
+        else:
+            dt = datetime.strptime(dateString, "%Y-%m-%d")
+
+    return dt
 
 pages = processFolder(os.path.join(app.root_path,u'pages'))
 
@@ -144,14 +156,7 @@ rssItems = []
 
 for page in blog:
 
-    dateString = getPageDate(page)
-    dt = datetime.strptime("2012","%Y") #if no date is set, make it in the past
-
-    if isinstance(dateString, str) or isinstance(dateString, unicode):
-        if len(dateString)==4:
-            dt = datetime.strptime(dateString, "%Y")
-        else:
-            dt = datetime.strptime(dateString, "%Y-%m-%d")
+    dt = getPageDate(page)
 
     item = PyRSS2Gen.RSSItem(
          title = page['meta']['title'],
