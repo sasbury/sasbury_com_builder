@@ -3,12 +3,13 @@ from __future__ import with_statement
 import sys
 import os.path
 import shutil
-import zipfile
 import itertools
 import yaml
 import markdown
 import PyRSS2Gen
+import filecmp
 
+from md5 import md5
 from ftptool import FTPHost
 from getpass import getpass
 from datetime import datetime
@@ -18,8 +19,7 @@ from HTMLParser import HTMLParser
 
 DEBUG = True
 BUILD_FOLDER = '../build'
-OLD_BUILD_FOLDER = '../build_old'
-UPLOAD_FOLDER = '../upload'+datetime.strftime(datetime.utcnow(), "_%Y_%b_%d_%H_%M_%S")
+LAST_UPLOAD_FOLDER = '../.previous_upload'
 FREEZER_DESTINATION = BUILD_FOLDER
 
 app = Flask(__name__)
@@ -256,16 +256,6 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1 and sys.argv[1] == "build":
 
-        if os.path.exists(OLD_BUILD_FOLDER):
-            print "Removing build backup"
-            shutil.rmtree(OLD_BUILD_FOLDER)
-
-        if os.path.exists(BUILD_FOLDER):
-            print "Moving previous build to build backup"
-            os.rename(BUILD_FOLDER,OLD_BUILD_FOLDER)
-        else:
-            print "Creating placeholder build backup"
-            os.mkdir(OLD_BUILD_FOLDER)
 
         if not os.path.exists(BUILD_FOLDER):
             print "Creating build folder"
@@ -274,32 +264,60 @@ if __name__ == '__main__':
         print "Compiling and saving site"
         freezer.freeze()
 
-        print "Copying build folder to temporary upload folder"
-        shutil.copytree(BUILD_FOLDER,UPLOAD_FOLDER)
-
-        print "Creating zip of upload folder"
-        zip = zipfile.ZipFile(UPLOAD_FOLDER+".zip", 'w', zipfile.ZIP_DEFLATED)
-        for base, dirs, files in os.walk(UPLOAD_FOLDER):
-            for file in files:
-                fn = os.path.join(base, file)
-                zip.write(fn, fn[len('../'):])#keep the upload folder name but not the ../ part
-
-        if os.path.exists(UPLOAD_FOLDER):
-            print "Removing temporary upload folder"
-            shutil.rmtree(UPLOAD_FOLDER)
-
-        if os.path.exists(OLD_BUILD_FOLDER):
-            print "Removing build backup"
-            shutil.rmtree(OLD_BUILD_FOLDER)
-
     elif len(sys.argv) > 1 and sys.argv[1] == "upload":
+        
+        if not os.path.exists(BUILD_FOLDER):
+            print "No build folder, build first!"
+        else:
+            if not os.path.exists(LAST_UPLOAD_FOLDER):
+                print "Creating placeholder last upload folder"
+                os.mkdir(LAST_UPLOAD_FOLDER)
 
-        ftpuser = raw_input("User: ")
-        pw = getpass("Password: ")
-        print "Connecting to sasbury.com and uploading new version"
-        sasburyHost = FTPHost.connect("ftp.sasbury.com", user=ftpuser, password=pw)
-        sasburyHost.mirror_to_remote(BUILD_FOLDER,"/")
-        sasburyHost.try_quit()
+            ftpuser = raw_input("User: ")
+            pw = getpass("Password: ")
+            print "Connecting to sasbury.com and uploading new version"
+            sasburyHost = FTPHost.connect("ftp.sasbury.com", user=ftpuser, password=pw)
+            #sasburyHost.mirror_to_remote(BUILD_FOLDER,"/")
+
+            for root, dirs, files in os.walk(BUILD_FOLDER):
+                for name in files:
+                    path = os.path.join(root,name)
+                    otherPath = path.replace(BUILD_FOLDER,LAST_UPLOAD_FOLDER)
+                    uploadPath = path.replace(BUILD_FOLDER,'')
+                    uploadDir = root.replace(BUILD_FOLDER, '')
+                    sasburyHost.makedirs(uploadDir)
+                    if not os.path.exists(otherPath):
+                        print "uploading new file ", path, " to ", uploadPath
+                        sasburyHost.file_proxy(uploadPath).upload_from_file(path)
+                    else:
+                        with open( path ) as openfile:
+                            hashOne = md5( openfile.read() ).hexdigest()
+                        with open( otherPath ) as openfile:
+                            hashTwo = md5( openfile.read() ).hexdigest()
+
+                        if hashOne != hashTwo:
+                            print "uploading changed file ", path, " to ", uploadPath
+                            sasburyHost.file_proxy(uploadPath).upload_from_file(path)
+                        #else:
+                            #print "skipping unchanged file ", path
+
+            for root, dirs, files in os.walk(LAST_UPLOAD_FOLDER):
+                for name in files:
+                    path = os.path.join(root,name)
+                    otherPath = path.replace(LAST_UPLOAD_FOLDER, BUILD_FOLDER)
+                    uploadPath = path.replace(LAST_UPLOAD_FOLDER, '')
+                    if not os.path.exists(otherPath):
+                        print "deleting ", uploadPath, otherPath, path
+                        sasburyHost.file_proxy(uploadPath).delete()
+
+            sasburyHost.try_quit()
+
+            print "Removing last upload folder"
+            shutil.rmtree(LAST_UPLOAD_FOLDER)
+
+            if os.path.exists(BUILD_FOLDER):
+                print "Moving build to last upload folder"
+                os.rename(BUILD_FOLDER,LAST_UPLOAD_FOLDER)
 
     elif len(sys.argv) > 1 and sys.argv[1] == "static":
 
