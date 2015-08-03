@@ -8,6 +8,7 @@ import yaml
 import markdown
 import PyRSS2Gen
 import filecmp
+import re
 
 from md5 import md5
 from ftptool import FTPHost
@@ -63,6 +64,9 @@ def parsePage(string, path):
 
     if page['meta']['tags'] is None:
         page['meta']['tags'] = []
+
+    sshot_re = re.compile('alt="sshot:')
+    page['html'] = sshot_re.sub('class="sshot" alt="sshot:', page['html'])
 
     return page
 
@@ -281,6 +285,10 @@ if __name__ == '__main__':
 
             for root, dirs, files in os.walk(BUILD_FOLDER):
                 for name in files:
+                    if name.startswith("."):
+                        print "skipping dot file ", name
+                        continue
+                        
                     path = os.path.join(root,name)
                     otherPath = path.replace(BUILD_FOLDER,LAST_UPLOAD_FOLDER)
                     uploadPath = path.replace(BUILD_FOLDER,'')
@@ -303,6 +311,9 @@ if __name__ == '__main__':
 
             for root, dirs, files in os.walk(LAST_UPLOAD_FOLDER):
                 for name in files:
+                    if name.startswith("."):
+                        continue
+
                     path = os.path.join(root,name)
                     otherPath = path.replace(LAST_UPLOAD_FOLDER, BUILD_FOLDER)
                     uploadPath = path.replace(LAST_UPLOAD_FOLDER, '')
