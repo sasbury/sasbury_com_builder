@@ -12,7 +12,7 @@ import PyRSS2Gen
 import filecmp
 import re
 
-from md5 import md5
+import hashlib
 from ftptool import FTPHost
 from getpass import getpass
 from datetime import datetime
@@ -39,6 +39,8 @@ file_cache = {}
 class MLStripper(HTMLParser):
     def __init__(self):
         self.reset()
+        self.strict = False
+        self.convert_charrefs= True
         self.fed = []
     def handle_data(self, d):
         self.fed.append(d)
@@ -77,7 +79,7 @@ def parsePage(string, path):
 def processFile(path, filepath):
     mtime = os.path.getmtime(filepath)
     with open(filepath) as fd:
-        content = fd.read().decode('utf8')
+        content = fd.read()
     page = parsePage(content, path)
     page['mtime'] = mtime
     page['filepath'] = filepath
@@ -273,7 +275,7 @@ if __name__ == '__main__':
         freezer.freeze()
 
     elif len(sys.argv) > 1 and sys.argv[1] == "upload":
-        
+
         if not os.path.exists(BUILD_FOLDER):
             print("No build folder, build first!")
         else:
@@ -292,7 +294,7 @@ if __name__ == '__main__':
                     if name.startswith("."):
                         print("skipping dot file ", name)
                         continue
-                        
+
                     path = os.path.join(root,name)
                     otherPath = path.replace(BUILD_FOLDER,LAST_UPLOAD_FOLDER)
                     uploadPath = path.replace(BUILD_FOLDER,'')
@@ -303,9 +305,9 @@ if __name__ == '__main__':
                         sasburyHost.file_proxy(uploadPath).upload_from_file(path)
                     else:
                         with open( path ) as openfile:
-                            hashOne = md5( openfile.read() ).hexdigest()
+                            hashOne = hashlib.md5( openfile.read() ).hexdigest()
                         with open( otherPath ) as openfile:
-                            hashTwo = md5( openfile.read() ).hexdigest()
+                            hashTwo = hashlib.md5( openfile.read() ).hexdigest()
 
                         if hashOne != hashTwo:
                             print("uploading changed file ", path, " to ", uploadPath)
