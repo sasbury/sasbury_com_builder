@@ -1,5 +1,7 @@
 from __future__ import with_statement
 
+from __future__ import absolute_import
+from __future__ import print_function
 import sys
 import os.path
 import shutil
@@ -16,7 +18,9 @@ from getpass import getpass
 from datetime import datetime
 from flask import Flask, render_template,abort
 from flask_frozen import Freezer
-from HTMLParser import HTMLParser
+from six.moves.html_parser import HTMLParser
+import six
+from six.moves import input
 
 DEBUG = True
 BUILD_FOLDER = '../build'
@@ -56,7 +60,7 @@ def parsePage(string, path):
     page = {}
 
     page['path'] = path
-    page['meta_yaml'] = u'\n'.join(itertools.takewhile(unicode.strip, lines))
+    page['meta_yaml'] = u'\n'.join(itertools.takewhile(six.text_type.strip, lines))
     page['content'] = u'\n'.join(lines)
     page['meta'] = yaml.safe_load(page['meta_yaml'])
     page['html'] = markdown.markdown(page['content'], extensions)
@@ -122,7 +126,7 @@ def getPageDate(page):
     dateString = getPageDateString(page)
     dt = datetime.strptime("2000","%Y") #if no date is set, make it in the past
 
-    if isinstance(dateString, str) or isinstance(dateString, unicode):
+    if isinstance(dateString, str) or isinstance(dateString, six.text_type):
         if len(dateString)==4:
             dt = datetime.strptime(dateString, "%Y")
         else:
@@ -262,31 +266,31 @@ if __name__ == '__main__':
 
 
         if not os.path.exists(BUILD_FOLDER):
-            print "Creating build folder"
+            print("Creating build folder")
             os.mkdir(BUILD_FOLDER)
 
-        print "Compiling and saving site"
+        print("Compiling and saving site")
         freezer.freeze()
 
     elif len(sys.argv) > 1 and sys.argv[1] == "upload":
         
         if not os.path.exists(BUILD_FOLDER):
-            print "No build folder, build first!"
+            print("No build folder, build first!")
         else:
             if not os.path.exists(LAST_UPLOAD_FOLDER):
-                print "Creating placeholder last upload folder"
+                print("Creating placeholder last upload folder")
                 os.mkdir(LAST_UPLOAD_FOLDER)
 
-            ftpuser = raw_input("User: ")
+            ftpuser = input("User: ")
             pw = getpass("Password: ")
-            print "Connecting to sasbury.com and uploading new version"
+            print("Connecting to sasbury.com and uploading new version")
             sasburyHost = FTPHost.connect("ftp.sasbury.com", user=ftpuser, password=pw)
             #sasburyHost.mirror_to_remote(BUILD_FOLDER,"/")
 
             for root, dirs, files in os.walk(BUILD_FOLDER):
                 for name in files:
                     if name.startswith("."):
-                        print "skipping dot file ", name
+                        print("skipping dot file ", name)
                         continue
                         
                     path = os.path.join(root,name)
@@ -295,7 +299,7 @@ if __name__ == '__main__':
                     uploadDir = root.replace(BUILD_FOLDER, '')
                     sasburyHost.makedirs(uploadDir)
                     if not os.path.exists(otherPath):
-                        print "uploading new file ", path, " to ", uploadPath
+                        print("uploading new file ", path, " to ", uploadPath)
                         sasburyHost.file_proxy(uploadPath).upload_from_file(path)
                     else:
                         with open( path ) as openfile:
@@ -304,7 +308,7 @@ if __name__ == '__main__':
                             hashTwo = md5( openfile.read() ).hexdigest()
 
                         if hashOne != hashTwo:
-                            print "uploading changed file ", path, " to ", uploadPath
+                            print("uploading changed file ", path, " to ", uploadPath)
                             sasburyHost.file_proxy(uploadPath).upload_from_file(path)
                         #else:
                             #print "skipping unchanged file ", path
@@ -318,16 +322,16 @@ if __name__ == '__main__':
                     otherPath = path.replace(LAST_UPLOAD_FOLDER, BUILD_FOLDER)
                     uploadPath = path.replace(LAST_UPLOAD_FOLDER, '')
                     if not os.path.exists(otherPath):
-                        print "deleting ", uploadPath, otherPath, path
+                        print("deleting ", uploadPath, otherPath, path)
                         sasburyHost.file_proxy(uploadPath).delete()
 
             sasburyHost.try_quit()
 
-            print "Removing last upload folder"
+            print("Removing last upload folder")
             shutil.rmtree(LAST_UPLOAD_FOLDER)
 
             if os.path.exists(BUILD_FOLDER):
-                print "Moving build to last upload folder"
+                print("Moving build to last upload folder")
                 os.rename(BUILD_FOLDER,LAST_UPLOAD_FOLDER)
 
     elif len(sys.argv) > 1 and sys.argv[1] == "static":
