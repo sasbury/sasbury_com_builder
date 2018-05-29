@@ -1,7 +1,4 @@
-from __future__ import with_statement
-
-from __future__ import absolute_import
-from __future__ import print_function
+import ftplib
 import sys
 import os.path
 import shutil
@@ -13,7 +10,6 @@ import filecmp
 import re
 
 import hashlib
-from ftptool import FTPHost
 from getpass import getpass
 from datetime import datetime
 from flask import Flask, render_template,abort
@@ -52,6 +48,42 @@ def strip_tags(html):
     s.feed(html)
     return s.get_data()
 
+# From http://effbot.org/librarybook/ftplib.htm
+def ftp_upload(ftp, uploadpath, filepath):
+    ext = os.path.splitext(filepath)[1]
+    if ext in (".txt", ".htm", ".html"):
+        ftp.storlines("STOR " + uploadpath, open(filepath, "rb"))
+    else:
+        ftp.storbinary("STOR " + uploadpath, open(filepath, "rb"), 1024)
+
+# From FTPTools, converted to python3
+def makedirs(ftp, dirpath):
+    """Try to create directories out of each part of `dirpath`.
+    """
+    pwd = ftp.pwd()
+    try:
+        ftp.cwd(dirpath)
+    except ftplib.Error:
+        pass
+    else:
+        return
+    finally:
+        ftp.cwd(pwd)
+
+    # Then if we're still alive, split the path up.
+    parts = dirpath.split('/')
+    # Then iterate through the parts.
+    cdir = ""
+    for dir in parts:
+        cdir += dir + "/"
+        # No point in trying to create the directory again when we only
+        # added a slash.
+        if not dir:
+            continue
+        try:
+            ftp.mkd(cdir)
+        except ftplib.Error:
+            pass
 #
 # Based on Flask FlatPages
 #
@@ -286,7 +318,8 @@ if __name__ == '__main__':
             ftpuser = input("User: ")
             pw = getpass("Password: ")
             print("Connecting to sasbury.com and uploading new version")
-            sasburyHost = FTPHost.connect("ftp.sasbury.com", user=ftpuser, password=pw)
+            ftp = ftplib.FTP("ftp.sasbury.com")
+            ftp.login(ftpuser, pw)
             #sasburyHost.mirror_to_remote(BUILD_FOLDER,"/")
 
             for root, dirs, files in os.walk(BUILD_FOLDER):
@@ -299,10 +332,12 @@ if __name__ == '__main__':
                     otherPath = path.replace(BUILD_FOLDER,LAST_UPLOAD_FOLDER)
                     uploadPath = path.replace(BUILD_FOLDER,'')
                     uploadDir = root.replace(BUILD_FOLDER, '')
-                    sasburyHost.makedirs(uploadDir)
+
+                    makedirs(ftp, uploadDir)
+
                     if not os.path.exists(otherPath):
                         print("uploading new file ", path, " to ", uploadPath)
-                        sasburyHost.file_proxy(uploadPath).upload_from_file(path)
+                        ftp_upload(ftp, uploadPath, path)
                     else:
                         with open( path ) as openfile:
                             hashOne = hashlib.md5( openfile.read() ).hexdigest()
@@ -311,7 +346,7 @@ if __name__ == '__main__':
 
                         if hashOne != hashTwo:
                             print("uploading changed file ", path, " to ", uploadPath)
-                            sasburyHost.file_proxy(uploadPath).upload_from_file(path)
+                            ftp_upload(ftp, uploadPath, path)
                         #else:
                             #print "skipping unchanged file ", path
 
@@ -325,9 +360,9 @@ if __name__ == '__main__':
                     uploadPath = path.replace(LAST_UPLOAD_FOLDER, '')
                     if not os.path.exists(otherPath):
                         print("deleting ", uploadPath, otherPath, path)
-                        sasburyHost.file_proxy(uploadPath).delete()
+                        ftp.delete(uploadPath)
 
-            sasburyHost.try_quit()
+            ftp.quit()
 
             print("Removing last upload folder")
             shutil.rmtree(LAST_UPLOAD_FOLDER)
