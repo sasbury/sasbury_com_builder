@@ -84,6 +84,14 @@ def makedirs(ftp, dirpath):
             ftp.mkd(cdir)
         except ftplib.Error:
             pass
+
+def md5(fname):
+    hash_md5 = hashlib.md5()
+    with open(fname, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
+
 #
 # Based on Flask FlatPages
 #
@@ -339,10 +347,12 @@ if __name__ == '__main__':
                         print("uploading new file ", path, " to ", uploadPath)
                         ftp_upload(ftp, uploadPath, path)
                     else:
-                        with open( path ) as openfile:
-                            hashOne = hashlib.md5( openfile.read() ).hexdigest()
-                        with open( otherPath ) as openfile:
-                            hashTwo = hashlib.md5( openfile.read() ).hexdigest()
+                        try:
+                            hashOne = md5(path)
+                            hashTwo = md5(otherPath)
+                        except:
+                            hashOne = 1
+                            hashTwo = 2
 
                         if hashOne != hashTwo:
                             print("uploading changed file ", path, " to ", uploadPath)
