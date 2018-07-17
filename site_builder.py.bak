@@ -1,21 +1,22 @@
+from __future__ import with_statement
 
-import filecmp
-import hashlib
-import itertools
-import markdown
-import os.path
-import PyRSS2Gen
-import re
-import shutil
 import sys
+import os.path
+import shutil
+import itertools
 import yaml
+import markdown
+import PyRSS2Gen
+import filecmp
+import re
 
-from ftplib import FTP
+from md5 import md5
+from ftptool import FTPHost
 from getpass import getpass
 from datetime import datetime
 from flask import Flask, render_template,abort
 from flask_frozen import Freezer
-from html.parser import HTMLParser
+from HTMLParser import HTMLParser
 
 DEBUG = True
 BUILD_FOLDER = '../build'
@@ -33,7 +34,6 @@ file_cache = {}
 #
 class MLStripper(HTMLParser):
     def __init__(self):
-        super(MLStripper, self).__init__(convert_charrefs=True)
         self.reset()
         self.fed = []
     def handle_data(self, d):
@@ -56,7 +56,7 @@ def parsePage(string, path):
     page = {}
 
     page['path'] = path
-    page['meta_yaml'] = u'\n'.join(itertools.takewhile(str.strip, lines))
+    page['meta_yaml'] = u'\n'.join(itertools.takewhile(unicode.strip, lines))
     page['content'] = u'\n'.join(lines)
     page['meta'] = yaml.safe_load(page['meta_yaml'])
     page['html'] = markdown.markdown(page['content'], extensions)
@@ -73,7 +73,7 @@ def parsePage(string, path):
 def processFile(path, filepath):
     mtime = os.path.getmtime(filepath)
     with open(filepath) as fd:
-        content = fd.read()
+        content = fd.read().decode('utf8')
     page = parsePage(content, path)
     page['mtime'] = mtime
     page['filepath'] = filepath
@@ -122,7 +122,7 @@ def getPageDate(page):
     dateString = getPageDateString(page)
     dt = datetime.strptime("2000","%Y") #if no date is set, make it in the past
 
-    if isinstance(dateString, str) or isinstance(dateString, str):
+    if isinstance(dateString, str) or isinstance(dateString, unicode):
         if len(dateString)==4:
             dt = datetime.strptime(dateString, "%Y")
         else:
@@ -139,7 +139,7 @@ projects = []
 blog = []
 reading_list = []
 
-for path,page in list(pages.items()):
+for path,page in pages.items():
     if path.startswith('projects'):
         page['parent_url'] = '/portfolio/'
         page['parent'] = 'Back to \"about me\"'
@@ -222,7 +222,7 @@ def tag(tag):
 
     tagged = []
 
-    for path,page in list(pages.items()):
+    for path,page in pages.items():
         tags = page['meta']['tags']
         if tag in tags:
             tagged.append(page)
@@ -262,63 +262,52 @@ if __name__ == '__main__':
 
 
         if not os.path.exists(BUILD_FOLDER):
-            print("Creating build folder")
+            print "Creating build folder"
             os.mkdir(BUILD_FOLDER)
 
-        print("Compiling and saving site")
+        print "Compiling and saving site"
         freezer.freeze()
 
     elif len(sys.argv) > 1 and sys.argv[1] == "upload":
         
         if not os.path.exists(BUILD_FOLDER):
-            print("No build folder, build first!")
+            print "No build folder, build first!"
         else:
             if not os.path.exists(LAST_UPLOAD_FOLDER):
-                print("Creating placeholder last upload folder")
+                print "Creating placeholder last upload folder"
                 os.mkdir(LAST_UPLOAD_FOLDER)
 
-            ftpuser = input("User: ")
+            ftpuser = raw_input("User: ")
             pw = getpass("Password: ")
-            print("Connecting to sasbury.com and uploading new version")
-            ftp = FTP('ftp.sasbury.com', ftpuser, pw)
+            print "Connecting to sasbury.com and uploading new version"
+            sasburyHost = FTPHost.connect("ftp.sasbury.com", user=ftpuser, password=pw)
+            #sasburyHost.mirror_to_remote(BUILD_FOLDER,"/")
 
             for root, dirs, files in os.walk(BUILD_FOLDER):
                 for name in files:
                     if name.startswith("."):
-                        print("skipping dot file ", name)
+                        print "skipping dot file ", name
                         continue
                         
                     path = os.path.join(root,name)
                     otherPath = path.replace(BUILD_FOLDER,LAST_UPLOAD_FOLDER)
                     uploadPath = path.replace(BUILD_FOLDER,'')
                     uploadDir = root.replace(BUILD_FOLDER, '')
-
-                    ftp.cwd('/')
-                    split = uploadPath.strip('/').split('/')
-                    filename = split[-1]
-                    therest = split[0:-1]
-
-                    for d in therest:
-                        try:
-                            ftp.cwd(d)
-                        except:
-                            ftp.mkd(d)
-                            ftp.cwd(d)
-
+                    sasburyHost.makedirs(uploadDir)
                     if not os.path.exists(otherPath):
-                        print("uploading new file ", path, " to ", uploadPath)
-                        with open(path, 'rb') as openfile:
-                            ftp.storbinary('STOR ' + filename, openfile)
+                        print "uploading new file ", path, " to ", uploadPath
+                        sasburyHost.file_proxy(uploadPath).upload_from_file(path)
                     else:
                         with open( path ) as openfile:
-                            hashOne = hashlib.md5( openfile.read().encode() ).hexdigest()
+                            hashOne = md5( openfile.read() ).hexdigest()
                         with open( otherPath ) as openfile:
-                            hashTwo = hashlib.md5( openfile.read().encode() ).hexdigest()
+                            hashTwo = md5( openfile.read() ).hexdigest()
 
                         if hashOne != hashTwo:
-                            print("uploading changed file ", path, " to ", uploadPath)
-                            with open(path, 'rb') as openfile:
-                                ftp.storbinary('STOR ' + filename, openfile)
+                            print "uploading changed file ", path, " to ", uploadPath
+                            sasburyHost.file_proxy(uploadPath).upload_from_file(path)
+                        #else:
+                            #print "skipping unchanged file ", path
 
             for root, dirs, files in os.walk(LAST_UPLOAD_FOLDER):
                 for name in files:
@@ -328,26 +317,17 @@ if __name__ == '__main__':
                     path = os.path.join(root,name)
                     otherPath = path.replace(LAST_UPLOAD_FOLDER, BUILD_FOLDER)
                     uploadPath = path.replace(LAST_UPLOAD_FOLDER, '')
-
-                    ftp.cwd('/')
-                    split = uploadPath.split('/')
-                    filename = split[-1]
-                    therest = split[0:-1]
-
-                    for d in therest:
-                        ftp.cwd(d)
-
                     if not os.path.exists(otherPath):
-                        print("deleting ", uploadPath, otherPath, path)
-                        ftp.delete(filename)
+                        print "deleting ", uploadPath, otherPath, path
+                        sasburyHost.file_proxy(uploadPath).delete()
 
-            ftp.quit()
+            sasburyHost.try_quit()
 
-            print("Removing last upload folder")
+            print "Removing last upload folder"
             shutil.rmtree(LAST_UPLOAD_FOLDER)
 
             if os.path.exists(BUILD_FOLDER):
-                print("Moving build to last upload folder")
+                print "Moving build to last upload folder"
                 os.rename(BUILD_FOLDER,LAST_UPLOAD_FOLDER)
 
     elif len(sys.argv) > 1 and sys.argv[1] == "static":
