@@ -35,6 +35,8 @@ class MLStripper(HTMLParser):
     def __init__(self):
         super(MLStripper, self).__init__(convert_charrefs=True)
         self.reset()
+        self.strict = False
+        self.convert_charrefs= True
         self.fed = []
     def handle_data(self, d):
         self.fed.append(d)
@@ -45,6 +47,50 @@ def strip_tags(html):
     s = MLStripper()
     s.feed(html)
     return s.get_data()
+
+# From http://effbot.org/librarybook/ftplib.htm
+def ftp_upload(ftp, uploadpath, filepath):
+    ext = os.path.splitext(filepath)[1]
+    if ext in (".txt", ".htm", ".html"):
+        ftp.storlines("STOR " + uploadpath, open(filepath, "rb"))
+    else:
+        ftp.storbinary("STOR " + uploadpath, open(filepath, "rb"), 1024)
+
+# From FTPTools, converted to python3
+def makedirs(ftp, dirpath):
+    """Try to create directories out of each part of `dirpath`.
+    """
+    pwd = ftp.pwd()
+    try:
+        ftp.cwd(dirpath)
+    except ftplib.Error:
+        pass
+    else:
+        return
+    finally:
+        ftp.cwd(pwd)
+
+    # Then if we're still alive, split the path up.
+    parts = dirpath.split('/')
+    # Then iterate through the parts.
+    cdir = ""
+    for dir in parts:
+        cdir += dir + "/"
+        # No point in trying to create the directory again when we only
+        # added a slash.
+        if not dir:
+            continue
+        try:
+            ftp.mkd(cdir)
+        except ftplib.Error:
+            pass
+
+def md5(fname):
+    hash_md5 = hashlib.md5()
+    with open(fname, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
 
 #
 # Based on Flask FlatPages
@@ -269,7 +315,7 @@ if __name__ == '__main__':
         freezer.freeze()
 
     elif len(sys.argv) > 1 and sys.argv[1] == "upload":
-        
+
         if not os.path.exists(BUILD_FOLDER):
             print("No build folder, build first!")
         else:
@@ -287,7 +333,7 @@ if __name__ == '__main__':
                     if name.startswith("."):
                         print("skipping dot file ", name)
                         continue
-                        
+
                     path = os.path.join(root,name)
                     otherPath = path.replace(BUILD_FOLDER,LAST_UPLOAD_FOLDER)
                     uploadPath = path.replace(BUILD_FOLDER,'')
