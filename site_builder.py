@@ -357,9 +357,15 @@ if __name__ == '__main__':
                             ftp.storbinary('STOR ' + filename, openfile)
                     else:
                         with open( path ) as openfile:
-                            hashOne = hashlib.md5( openfile.read().encode() ).hexdigest()
+                            try:
+                                hashOne = hashlib.md5( openfile.read().encode() ).hexdigest()
+                            except:
+                                hashOne = "one"
                         with open( otherPath ) as openfile:
-                            hashTwo = hashlib.md5( openfile.read().encode() ).hexdigest()
+                            try:
+                                hashTwo = hashlib.md5( openfile.read().encode() ).hexdigest()
+                            except:
+                                hashOne = "two"
 
                         if hashOne != hashTwo:
                             print("uploading changed file ", path, " to ", uploadPath)
