@@ -105,7 +105,7 @@ def parsePage(string, path):
     page['meta_yaml'] = u'\n'.join(itertools.takewhile(str.strip, lines))
     page['content'] = u'\n'.join(lines)
     page['meta'] = yaml.safe_load(page['meta_yaml'])
-    page['html'] = markdown.markdown(page['content'], extensions)
+    page['html'] = markdown.markdown(page['content'], extensions=extensions)
     page['summary'] = strip_tags(page['html'])[:280]+' ...' #first set of characters
 
     if page['meta']['tags'] is None:
