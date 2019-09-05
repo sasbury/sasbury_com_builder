@@ -20,10 +20,11 @@ from html.parser import HTMLParser
 DEBUG = True
 BUILD_FOLDER = '../build'
 LAST_UPLOAD_FOLDER = '../.previous_upload'
-FREEZER_DESTINATION = BUILD_FOLDER
 
 app = Flask(__name__)
 app.config.from_object(__name__)
+app.config['FREEZER_DESTINATION'] = BUILD_FOLDER
+app.config['FREEZER_DESTINATION_IGNORE'] = ['.git*']
 freezer = Freezer(app)
 
 file_cache = {}
@@ -210,7 +211,7 @@ for page in blog:
 
     item = PyRSS2Gen.RSSItem(
          title = page['meta']['title'],
-         link = 'http://www.sasbury.com'+'/'+page['path'],
+         link = 'https://www.sasbury.com'+'/'+page['path'],
          description = page['summary'],
          guid = PyRSS2Gen.Guid('/'+page['path']),
          pubDate = dt)
@@ -221,7 +222,7 @@ rssItems.sort(key=lambda rssItem: rssItem.pubDate, reverse=True)
 
 rss = PyRSS2Gen.RSS2(
     title = "sasbury.com feed",
-    link = "http://www.sasbury.com",
+    link = "https://www.sasbury.com",
     description = "sasbury.com RSS feed",
     docs = '',
     lastBuildDate = datetime.utcnow(),
@@ -306,12 +307,15 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1 and sys.argv[1] == "build":
 
+        if len(sys.argv) > 2:
+            BUILD_FOLDER = sys.argv[2]
 
         if not os.path.exists(BUILD_FOLDER):
-            print("Creating build folder")
+            print("Creating build folder", BUILD_FOLDER)
             os.mkdir(BUILD_FOLDER)
 
-        print("Compiling and saving site")
+        app.config['FREEZER_DESTINATION'] = BUILD_FOLDER
+        print("Compiling and saving site", BUILD_FOLDER)
         freezer.freeze()
 
     elif len(sys.argv) > 1 and sys.argv[1] == "upload":
